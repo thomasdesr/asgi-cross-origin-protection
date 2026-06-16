@@ -137,4 +137,3 @@ across all files on demand.
   the reasoning behind that design.
 - [XS-Leaks Wiki](https://xsleaks.dev/), background on the cross-site leak
   classes the isolation headers help defend against.
-```
