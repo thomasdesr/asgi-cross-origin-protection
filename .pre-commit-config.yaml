@@ -1,0 +1,47 @@
+# See https://github.com/j178/prek — run with `prek run --all-files`.
+#
+# All tool hooks are `local`/`language: system` and invoke uv/uvx directly.
+# prek's managed hook environments install via `uv pip`, which this environment
+# blocks in favor of `uv add`/`uvx`; local hooks sidestep that path. ruff and ty
+# come from the project's lint dependency group (lock-pinned), so `uv run` reuses
+# the synced versions.
+repos:
+  # General file checks (prek builtin — Rust-native, no environment needed)
+  - repo: builtin
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+
+  - repo: local
+    hooks:
+      # Ruff — lint then format
+      - id: ruff
+        name: ruff check
+        entry: uv run ruff check --fix
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+
+      # Type checking
+      - id: ty
+        name: ty check
+        entry: uv run ty check src/
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      # GitHub Actions security audit — only runs when a workflow file changes
+      - id: zizmor
+        name: zizmor
+        entry: uvx zizmor@1.25.2
+        language: system
+        files: ^\.github/workflows/.*\.ya?ml$
