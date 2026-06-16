@@ -105,3 +105,46 @@ async def test_non_http_scope_passes_through_untouched():
     middleware = CrossOriginIsolation(app)
     await middleware({"type": "lifespan"}, receive, send)
     assert seen["type"] == "lifespan"
+
+
+async def test_streaming_body_passes_through_unchanged():
+    # Headers attach to http.response.start only; the multi-chunk body must
+    # arrive byte-for-byte (the wrapper forwards http.response.body untouched).
+    async def app(scope: Scope, receive: Receive, send: Send) -> None:
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 200,
+                "headers": [(b"content-type", b"text/plain")],
+            }
+        )
+        await send({"type": "http.response.body", "body": b"chunk-1", "more_body": True})
+        await send({"type": "http.response.body", "body": b"chunk-2", "more_body": True})
+        await send({"type": "http.response.body", "body": b"chunk-3"})
+
+    transport = httpx.ASGITransport(app=CrossOriginIsolation(app))
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as c:
+        response = await c.get("/echo")
+    assert response.content == b"chunk-1chunk-2chunk-3"
+    assert response.headers["cross-origin-opener-policy"] == "same-origin"
+
+
+async def test_headers_added_to_non_200_response():
+    # Isolation headers apply regardless of status — error pages get them too.
+    async def app(scope: Scope, receive: Receive, send: Send) -> None:
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 500,
+                "headers": [(b"content-type", b"text/plain")],
+            }
+        )
+        await send({"type": "http.response.body", "body": b"boom"})
+
+    transport = httpx.ASGITransport(app=CrossOriginIsolation(app))
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as c:
+        response = await c.get("/echo")
+    assert response.status_code == 500
+    assert response.headers["cross-origin-opener-policy"] == "same-origin"
+    assert response.headers["cross-origin-embedder-policy"] == "require-corp"
+    assert response.headers["cross-origin-resource-policy"] == "same-site"
