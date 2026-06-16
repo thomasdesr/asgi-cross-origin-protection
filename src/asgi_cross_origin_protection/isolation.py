@@ -17,6 +17,11 @@ class CrossOriginIsolation:
 
     Each policy is added only when the wrapped app did not already set that
     header. Pass ``None`` for a policy to leave that header alone.
+
+    ``require-corp`` (the ``embedder_policy`` default) is breaking: a document
+    carrying it can only load cross-origin subresources that themselves send
+    ``Cross-Origin-Resource-Policy`` or CORS headers. That is inherent to
+    cross-origin isolation; pass ``embedder_policy=None`` to opt out.
     """
 
     def __init__(

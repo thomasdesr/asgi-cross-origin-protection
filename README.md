@@ -128,6 +128,12 @@ Each policy is added only when the wrapped app did not already set that header.
 Pass `None` for a policy to leave its header alone. Defaults: COOP `same-origin`,
 COEP `require-corp`, CORP `same-site`.
 
+`require-corp` is a breaking default: once a document carries it, every
+cross-origin subresource it loads (CDN scripts, images, fonts) must itself send
+`Cross-Origin-Resource-Policy` or CORS headers, or the browser blocks it. That is
+inherent to cross-origin isolation — pass `embedder_policy=None` for COOP and CORP
+without it.
+
 Compose both middlewares when you want protection and isolation together.
 
 ## Development
