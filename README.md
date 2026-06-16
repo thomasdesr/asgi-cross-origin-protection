@@ -58,6 +58,14 @@ app = CrossOriginProtection(
 )
 ```
 
+`allowed_origins` entries must be bare origins (`scheme://host[:port]`); an
+entry with a path, query, fragment, or missing scheme/host raises a `ValueError`
+at construction. `exempt_paths` entries must be absolute (start with `/`) and
+match on path-segment boundaries, so `/healthz` exempts `/healthz` and
+`/healthz/live` but not `/healthz-internal`; a non-absolute or empty entry
+raises a `ValueError`. An exemption applies to every method (in practice only
+state-changing ones, since safe methods are always allowed regardless).
+
 ### Custom rejection response
 
 `deny_app` is any ASGI app. Starlette/FastAPI `Response` instances are
@@ -76,14 +84,18 @@ app = CrossOriginProtection(
 
 A request is evaluated in this order; the first conclusive signal wins:
 
-1. **Fetch Metadata**: `Sec-Fetch-Site` of `same-origin`, `same-site`, or
-   `none` is allowed; `cross-site` is rejected.
-2. **Origin header**: compared against the request's own origin and any
-   `allowed_origins`. `Origin: null` is rejected.
-3. **Neither header present**: allowed unless `allow_unverifiable_requests`
-   is cleared.
+1. **`allowed_origins`**: an `Origin` in this set is allowed regardless of the
+   signals below, so a trusted partner's cross-site request still passes.
+2. **Fetch Metadata**: only `Sec-Fetch-Site` of `same-origin` or `none` is
+   allowed; `same-site`, `cross-site`, and any unrecognized value are rejected.
+   A present `Sec-Fetch-Site` is conclusive — the Origin step below is skipped.
+3. **Origin header**: compared against the request's own host. The comparison
+   is scheme-blind (the request's scheme is unreliable behind a TLS-terminating
+   proxy; relies on HSTS, as Go does). `Origin: null` is rejected.
+4. **Neither header present** (or an empty `Origin`): allowed unless
+   `allow_unverifiable_requests` is cleared.
 
-Safe methods (GET/HEAD/OPTIONS/TRACE) are always allowed; rejection applies to
+Safe methods (GET/HEAD/OPTIONS) are always allowed; rejection applies to
 state-changing methods.
 
 ### Hardening
